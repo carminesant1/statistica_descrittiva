@@ -1,0 +1,345 @@
+---
+title: "Statistica Descrittiva (ProfessionAI)"
+author: "Carmine Santone"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, include=F}
+library(readr)
+library(moments)
+library(knitr)
+library(ggplot2)
+library(dplyr)
+```
+
+## 1) Scarica il dataset realestate_textas.csv da qui e importalo con R
+
+Working directory
+
+```{r}
+setwd("C:/Users/csant/Desktop/ProfessionAI/Statistica Descrittiva")
+```
+
+```{r}
+texas <- read_csv("realestate_texas.csv")
+attach(texas)
+```
+## 2) Indica il tipo di variabili contenute nel dataset
+```{r}
+str(texas)
+```
+
+- City: variabile qualitativa nominale
+
+- Year: anche se espressa con numeri interi è da considerare come variabile qualitativa ordinale
+
+- Month: per la motivazione espressa precedentemente è una variabile qualitativa ordinale
+
+- Sales: variabile quantitativa
+
+- Volume: variabile quantitativa
+
+- Median price: variabile quantitativa
+
+- Listings: variabile quantitativa
+
+- Months inventory: variabile quantitativa
+ 
+## 3) Calcola Indici di posizione, variabilità e forma per tutte le variabili per le quali ha senso farlo, per le altre crea una distribuzione di frequenza. Commenta tutto brevemente
+```{r}
+#Variabile "city"
+ni.city<-table(city)
+fi.city<-table(city)/dim(texas)[1]
+Tabcity<-cbind(ni.city,fi.city)
+
+#Variabile "year"
+ni.year<-table(year)
+fi.year<-table(year)/dim(texas)[1]
+Ni.year<-cumsum(table(year))
+Fi.year<-cumsum(table(year))/dim(texas)[1]
+Tabyear<-cbind(ni.year,fi.year,Ni.year,Fi.year)
+
+#Variabile "month"
+ni.month<-table(month)
+fi.month<-table(month)/dim(texas)[1]
+Ni.month<-cumsum(table(month))
+Fi.month<-cumsum(table(month))/dim(texas)[1]
+Tabmonth<-cbind(ni.month,fi.month,Ni.month,Fi.month)
+
+#Altre variabili
+quant_var <- colnames(texas[4:8])
+lista_tab <- c()
+for (i in quant_var) {
+  #Indici di posizione
+  Mean<-mean(texas[[i]]) #media
+  Mode<-as.numeric(names(which.max(table(texas[[i]])))) #moda
+  Median<-median(texas[[i]]) #mediana
+  Min<-min(texas[[i]])
+  Max<-max(texas[[i]])
+  #Indici di variabilità
+  Range<-Max-Min
+  IQR<-IQR(texas[[i]])
+  SD<-sd(texas[[i]]) #varianza
+  #Variance.sales<-(var(sales)*(length(sales)-1))/length(sales) in alternativa
+  Variance<-SD^2
+  CV<-SD/Mean
+  #Indici di forma
+  Kurtosis<-kurtosis(texas[[i]])-3
+  Skewness<-skewness(texas[[i]])
+  Tab<-cbind(Mean,Mode,Median,Min,Max,Range,IQR,Variance,SD,CV,Skewness,Kurtosis)
+  
+  lista_tab[[i]] <- Tab
+}
+Tabcompl_quant<-rbind(lista_tab[[(1)]], lista_tab[[(2)]], lista_tab[[(3)]], lista_tab[[(4)]], lista_tab[[(5)]])
+Tabcompl_quant<-as.data.frame(Tabcompl_quant)
+rownames(Tabcompl_quant)<-colnames(texas[4:8])
+```
+Per le variabili quantitative ho calcolato i principali indici di posizione, di variabilità e di forma. In seguito li ho raggruppati in una tabella di sintesi.
+Possiamo confrontare le variabili con gli indici di asimmetria e coefficiente di variazione per comprendere meglio la loro distribuzione e variabilità. La maggior parte delle variabili presenta un'asimmetria positiva, dove i valori si concentrano maggiormente nella parte bassa della distribuzione, lasciando una coda più lunga verso destra. Fa eccezione la variabile "median_price".
+Dal punto di vista della variabilità relativa, misurata attraverso il coefficiente di variazione (CV), la variabile con la dispersione maggiore rispetto alla media è volume. Questa variabile è anche quella con il grado di asimmetria più elevato, come indicato dall’indice di skewness nella tabella, riflettendo una distribuzione particolarmente sbilanciata verso valori più alti.
+
+```{r}
+kable(round(Tabcompl_quant, 2))
+```
+
+Per le variabili “city”, “years” e “month”, essendo qualitative, ho creato solo le distribuzioni di frequenza. Come si può vedere, all’interno del dataset, il numero di osservazioni per ogni città è identico e sono stati 
+raccolti dati per ogni mese dal 2010 al 2014, per le città di Beaumont, Bryan-College Station, Tyler, Wichita Falls
+
+```{r}
+kable(Tabcity, caption = "Tabella di frequenze per la variabile city", align = "c")
+```
+```{r}
+kable(round(Tabmonth,2), caption = "Tabella di frequenze per la variabile month", align = "c")
+```
+```{r}
+kable(Tabyear, caption = "Tabella di frequenze per la variabile year", align = "c")
+```
+## 4) Qual è la variabile con variabilità più elevata? Come ci sei arrivato? E quale quella più asimmetrica?
+la variabile con indice 2, ovvero "volume", ha CV più alto, quindi variabilità più elevata
+```{r}
+kable(rownames(Tabcompl_quant[which.max(Tabcompl_quant$CV),]))
+```
+la variabile "volume" ha indice skewness più elevato in valore assoluto, quindi è più asimmetrica
+```{r}
+kable(rownames(Tabcompl_quant[which.max(abs(Tabcompl_quant$Skewness)),]))
+```
+## 5) Dividi una delle variabili quantitative in classi, scegli tu quale e come, costruisci la distribuzione di frequenze, il grafico a barre corrispondente e infine calcola l'indice di Gini
+Per il numero di classi utilizzo la formula di Sturges
+```{r}
+S<-round(1+10/3*log(length(sales)))
+W<-ceiling((max(sales)-min(sales))/S)
+class.sales<-cut(sales,breaks=c(seq(min(sales)-1,max(sales),W),max(sales)))
+ni.class.sales<-table(class.sales)
+Ni.class.sales<-cumsum(table(class.sales))
+fi.class.sales<-table(class.sales)/length(sales)
+Fi.class.sales<-cumsum(table(class.sales)/length(sales))
+Tabclass.sales<-cbind(ni.class.sales,Ni.class.sales,fi.class.sales,Fi.class.sales)
+kable(round(Tabclass.sales, 2), caption = "Tabella di frequenze della variabile sales divisa in classi", align = "c")
+barplot(table(class.sales),ylim = c(0,30),xlab = "Classi di sales",ylab = "Freq. Ass.")
+```
+
+Ci sono 19 classi, delle quali 18 con ampiezza 19 e l’ultima di ampiezza 3.
+Nella maggior parte dei mesi si ha un numero totale di vendite appartanente all'intervallo (116, 135], con una probabilità del 12%,
+
+L'indice di Gini è pari a 0.97, molto vicino al valore limite superiore. Ciò significa che c'è quasi un'equa distribuzione delle classi delle vendite totali, come prevedibile, data la bassa frequenza della classe più frequente.
+```{r}
+gini.index <- function(x){
+  ni = table(x)
+  fi = ni/length(x)
+  fi2 = fi^2
+  J = length(table(x))
+  gini = 1 - sum(fi2)
+  gini.normalizzato = gini/((J-1)/J)
+  return(gini.normalizzato)}
+
+kable(round(gini.index(class.sales),2))
+```
+## 6) Indovina l'indice di gini per la variabile city
+L'indice di Gini sarà pari a 1, in quanto c'è un'equa ripartizione delle frequenze assolute delle modalità della variabile city
+
+## 7) Qual è la probabilità che presa una riga a caso di questo dataset essa riporti la città "Beaumont"? E la probabilità che riporti il mese di Luglio? E la probabilità che riporti il mese di dicembre 2012?
+
+```{r}
+p1 <- sum(city=="Beaumont")/nrow(texas)
+p2 <- sum(month==7)/nrow(texas)
+p3 <- sum(month==12 & year==2012)/nrow(texas)
+
+p1 <- sum(city == "Beaumont") / nrow(texas)
+p2 <- sum(month == 7) / nrow(texas)
+p3 <- sum(month == 12 & year == 2012) / nrow(texas)
+
+probabilities <- data.frame(
+  p1,
+  p2,
+  p3)
+
+kable(
+  round(probabilities, 2),
+  align = "c",
+  col.names = c("P(city='Beaumont')", "P(month=7)", "P(month=12 & year=2012)"))
+```
+
+## 8) Esiste una colonna col prezzo mediano, creane una che indica invece il prezzo medio, utilizzando le altre variabili che hai a disposizione
+```{r}
+texas$mean_price<-(volume/sales)*1000000
+```
+## 9) Prova a creare un'altra colonna che dia un'idea di "efficacia" degli annunci di vendita. Riesci a fare qualche considerazione?
+```{r}
+texas$efflistings<-(sales/listings)*100
+texas$date <- as.Date(paste(texas$year,texas$month,"01",sep = "-"))
+```
+Per creare una colonna che rifletta l’efficacia degli annunci di vendita ho calcolato, per ogni osservazione, la percentuale di annunci che hanno portato ad un’effettiva vendita.
+```{r}
+texas$efflistings<-(sales/listings)*100
+texas$date <- as.Date(paste(texas$year,texas$month,"01",sep = "-"))
+```
+
+```{r}
+ggplot(data = texas) +
+  geom_line(aes(x = date, y = efflistings, colour = city)) +
+  geom_point(aes(x = date, y = efflistings, colour = city)) + # Aggiunge i punti
+  labs(
+    title = "Serie storica dell'efficacia degli annunci per città",
+    x = "Periodo",
+    y = "Percentuale di vendita sugli annunci attivi"
+  ) +
+  scale_x_date(
+    breaks = seq(as.Date("2010-01-01"), as.Date("2014-12-01"), by = "6 months"),
+    date_labels = "%m/%Y", 
+    expand = expansion(mult = c(0.001, 0.001)) 
+  ) +
+  theme_classic()
+
+
+```
+
+Ci sono due considerazioni da fare:
+
+1) Gli annunci di vendita più efficaci sono quelli presenti nella città Bryan-Colege Station;
+
+2) In generale si osserva che i trend positivi e negativi si verificano contemporaneamente nelle quattro città ma con magnitudine diversa.
+
+## 10) Prova a creare dei summary(), o semplicemente media e deviazione standard, di alcune variabili a tua scelta, condizionatamente alla città, agli anni e ai mesi
+```{r}
+summary_texas <- texas %>%
+  group_by(year, city) %>%
+  summarise(
+    media.di.sales = round(mean(sales),2),
+    sd.di.volume = round(sd(volume),2))
+kable(summary_texas)
+```
+
+```{r}
+ggplot(summary_texas, aes(x = year, y = media.di.sales, color = city, group = city)) +
+  geom_line(linewidth = 1) +           
+  geom_point(size = 2) +           
+  labs(
+    title = "Vendite medie mensili  per Città e Anno",
+    x = "Anno",
+    y = "Vednite medie mensili",
+    color = "Città"
+  ) +
+  theme_classic()
+```
+
+Si registra un calo delle vendite medie mensili nel 2011 per tutte le città del campione, successivamente incremento ad ogni anno, ad eccezione della città Wichita Falls, con una decrescita nel 2014
+
+## GRAFICI GGPLOT
+
+## 1) Utilizza i boxplot per confrontare la distribuzione del prezzo mediano delle case tra le varie città. Commenta il risultato
+```{r}
+ggplot(data=texas)+
+  geom_boxplot(aes(y=median_price,x=city))+
+  labs(title = "BoxPlot prezzo mediano tra città",
+       x="Città",
+       y="Prezzo mediano")+
+  theme_classic()
+```
+
+Dal grafico si evince che la variabile “median_price” presenta una maggiore variabilità per la città Wichita Falls, dove ci sono anche case con i prezzi minori, mentre la stessa variabile si distribuisce con una minore variabilità per le osservazioni relative alla città Bryan-College Station, dove sono presenti le case più costose
+
+## 2) Utilizza i boxplot o qualche variante per confrontare la distribuzione del valore totale delle vendite tra le varie città ma anche tra i vari anni. Qualche considerazione da fare?
+```{r}
+ggplot(data=texas)+
+  geom_boxplot(aes(y=volume,x=city,fill=as.factor(year)))+
+  labs(title = "BoxPlot valore totale vendite per città",
+       x="Città",
+       y="Valore totale vendite",
+       fill="Anno")+
+  theme_classic()
+```
+
+Dal grafico si può osservare che la variabile “volume” è caratterizzata da variabilità maggiore quando si tratta della città Bryan-College Station. In particolare il valore totale delle vendite ha una variabilità maggiore nell’anno 2013. Invece “volume” è meno variabile per la città Wichita Falls. Infine nell’anno 2012, limitatamente alla città Beumont, il volume delle vendite si caratterizza, in assoluto, per una minore variabilità
+
+## 3) Usa un grafico a barre sovrapposte per ogni anno, per confrontare il totale delle vendite nei vari mesi, sempre considerando le città. Prova a commentare ciò che viene fuori. Già che ci sei prova anche il grafico a barre normalizzato. 
+```{r}
+for (i in 2010:2014) {
+  grafico <- ggplot(data=subset(texas, year == i)) +
+    geom_col(aes(x = month, y = sales, fill = city), position = "stack") +
+    labs(
+      title = paste("Totale vendite per mese e città nell'anno", i),
+      x = "Mese",
+      y = "Totale delle vendite",
+      fill = "Città"
+    ) +
+    scale_x_continuous(breaks = seq(1, 12, 1)) +
+    scale_y_continuous(breaks = seq(100, 1200, 100)) +
+    theme_classic() +
+    theme(plot.title = element_text(size = 12))
+  print(grafico)
+}
+
+for (i in 2010:2014) {
+  grafico1 <- ggplot(data=subset(texas, year == i)) +
+    geom_col(aes(x = month, y = sales, fill = city), position = "fill") +
+    labs(
+      title = paste("Percentuale totale vendite per mese e città nell'anno", i),
+      x = "Mese",
+      y = "Percentuale delle vendite",
+      fill = "Città"
+    ) +
+    scale_x_continuous(breaks = seq(1, 12, 1)) +
+    scale_y_continuous(breaks = seq(0, 1, 0.05)) +
+    theme_classic() +
+    theme(plot.title = element_text(size = 10))
+  print(grafico1)
+}
+```
+
+Dai grafici si nota che per gran parte dei mesi presi in esame la percentuale di vendite più alta si registra nella città di Tyler mentre la più bassa nella città di Wichita Falls. Inoltre le percentuali di vendita per ogni città risultano essere più o meno costanti nel tempo. Un'altra considerazione da aggiungere riguarda il
+fatto che le vendite si concentrano, per ogni anno, durante il periodo estivo.
+
+## 4) Crea un line chart di una variabile a tua scelta per fare confronti commentati fra città e periodi storici.[per ogni anno]
+```{r}
+ggplot(data = texas) +
+  geom_line(aes(x = date, y = mean_price, colour = city)) +
+  geom_point(aes(x = date, y = mean_price, colour = city)) + # Aggiunge i punti
+  labs(
+    title = "Serie storica del prezzo medio tra le città",
+    x = "Periodo",
+    y = "Prezzo medio",
+    colour = "Città"
+  ) +
+  scale_x_date(
+    breaks = seq(as.Date("2010-01-01"), as.Date("2014-12-01"), by = "6 months"),
+    date_labels = "%m/%y",
+    expand = expansion(mult = c(0.01, 0.01)) # Aumenta lo spazio sull'asse x
+  ) +
+  theme_classic()
+
+```
+
+Ho scelto di rappresentare il prezzo medio delle vendite in ciascun mese dal 2010 al 2015 per le città presenti nel dataset. Si vede che i prezzi medi più alti si verificano nella città di Bryan-College Station mentre i più bassi riguardano la città di Wichita Falls. Considerazioni:
+- Ad inizio 2012 si è verificato un brusco calo dei prezzi che ha coinvolto tutte le città;
+- Il prezzo medio subisce delle forti variazioni, per tutte le città, subisce forti variazioni, rappresentato 
+  come delle rette spezzate
+-Spesso, le variazioni dei prezzi medi delle città di Beaumont e Tyler vanno nella stessa direzione
+- Al 2014, il prezzo medio è in crescita per tutte le città, è dovuto ad uno shock positivo che ha coinvolto   l'intero mercato immobiliare?
+
+# CONCLUSIONI
+Dalle analisi descrittive condotte sul dataset sono stati estratti degli insight interessanti. Innanzitutto si notano le continue variazioni di prezzo che coinvolgono tutte le città facenti parte del campione, quindi sono shock che riguardano il mercato immobiliare in sè. Dal lato delle vendite c'è da constatare che i trend sono generalmente in crescita, con le transazioni che si concludono con maggior frequenza durante i mesi estivi dell'anno. 
+Dal punto di vista delle singole città si osserva che il prezzo medio più alto si registra nella città di Bryan-College Station mentre il più basso nella città di Wichita Falls. Nella città di Tyler vengono effettuate più compra-vendite immobiliari rispetto alle altre e allo stesso tempo si rileva un fatturato complessivo del settore maggiore.
+Scendendo ancora di livello, andando a considerare la qualità delle agenzie immobiliari, bisogna citare gli agenti della città di Bryan-College Station che sovrastano i colleghi delle altre città in termini di percentuale di vendita sugli annunci attivi. 
